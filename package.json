@@ -1,0 +1,19 @@
+{
+  "name": "electronlearning",
+  "version": "1.0.0",
+  "description": "this is a electron demo",
+  "license": "ISC",
+  "author": "sisanwu12",
+  "type": "commonjs",
+  "main": "./electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0"
+  },
+  "dependencies": {
+    "uuid": "^11.1.0"
+  }
+}
