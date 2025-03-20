@@ -14,6 +14,9 @@
     "electron": "^35.0.0"
   },
   "dependencies": {
+    "chokidar": "^4.0.3",
+    "crypto": "^1.0.1",
+    "sqlite3": "^5.1.7",
     "uuid": "^11.1.0"
   }
 }

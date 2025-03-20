@@ -1,3 +1,8 @@
+const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
+const crypto = require('crypto');
+const path = require('path');
+
 
 // 返回文件夹内文件名函数
 async function retDatabaseDir(dirPath) {
@@ -15,18 +20,6 @@ async function retDatabaseDir(dirPath) {
     }
 }
 
-// 使用 SHA-256 计算文件哈希
-async function computeHash(filePath) {
-    const crypto = require('crypto');
-    const fs = require('fs');
-    return new Promise((resolve, reject) => {
-        const hash = crypto.createHash('sha256');
-        const stream = fs.createReadStream(filePath);
-        stream.on('data', data => hash.update(data));
-        stream.on('end', () => resolve(hash.digest('hex')));
-        stream.on('error', err => reject(err));
-    });
-}
 
 
 

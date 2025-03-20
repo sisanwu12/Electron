@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const { fork } = require('child_process');
 const myfiles = require('../my_modules/my_files');
 const mynetwork = require('../my_modules/my_network');
 
@@ -9,8 +10,9 @@ const BROADCAST_ADDR = '255.255.255.255'; // 子网掩码
 const Broadcast_Time = 5000;  // 广播时间间隔
 
 // 全局路径定义
-const DataPath = path.join(__dirname, `${path.sep}Database${path.sep}`);
-const PagePath = path.join(__dirname, `${path.sep}Pages.${path.sep}`);
+const DataPath = path.join(__dirname, `..${path.sep}Database${path.sep}`);
+const PagePath = path.join(__dirname, `${path.sep}Pages${path.sep}`);
+const ModulePath = path.join(__dirname, `..${path.sep}my_modules${path.sep}`)
 
 
 // 创建界面函数
@@ -36,6 +38,12 @@ app.whenReady().then(() => {
   });
   // 创建窗口
   createWindow()
+
+  // 启动文件监控
+  const watcherProcess = fork(path.resolve(ModulePath, 'fileWatcher.js'));
+  watcherProcess.on('message', (msg) => {
+    console.log('文件监控消息:', msg);
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
