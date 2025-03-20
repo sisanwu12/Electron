@@ -2,7 +2,6 @@ const TheBtnShowMyShareList = document.getElementById('ShowMyShareList')
 
 
 TheBtnShowMyShareList.onclick = async () => {
-    console.log(MyAPI);
     const ShareFileArr = await window.MyAPI.MyShareDir();
     if (ShareFileArr == NaN) {
         console.log('error');
