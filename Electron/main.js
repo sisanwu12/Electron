@@ -1,8 +1,10 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
-const myfiles = require('../my_modules/my_files');
-const mynetwork = require('../my_modules/my_network');
+const { Worker } = require('worker_threads');
+// const myfiles = require('../my_modules/my_files');
+// const dbWorker = require('../my_modules/dbworker');
+let dbWorker = new Worker(path.join(__dirname, '../my_modules', 'dbworker.js'));
 
 // 全局常量定义
 const BROADCAST_PORT = 32145; // 端口号
@@ -29,12 +31,51 @@ function createWindow() {
 }
 
 
+// 用于管理请求—响应
+const pendingRequests = new Map();
+// 简单的 requestId 生成器
+let nextRequestId = 1;
+function generateRequestId() {
+  return nextRequestId++;
+}
+
+dbWorker.on('message', (message) => {
+  const { requestId, data, error } = message;
+  if (pendingRequests.has(requestId)) {
+    const { resolve, reject } = pendingRequests.get(requestId);
+    if (error) {
+      reject(new Error(error));
+    } else {
+      resolve(data);
+    }
+    pendingRequests.delete(requestId);
+  }
+});
+
+
+
+// 定义一个函数，通过 dbWorker 请求数据库数据
+function retDatabaseDir() {
+  return new Promise((resolve, reject) => {
+    const requestId = generateRequestId();
+    pendingRequests.set(requestId, { resolve, reject });
+    dbWorker.postMessage({ action: 'retShareDir', requestId });
+  });
+}
+
+
 
 // 准备就绪，开始渲染页面
 app.whenReady().then(() => {
-  // 监听分享文件夹获取消息
+  // 监听预加载脚本发出的 'retShareDir' 请求
   ipcMain.handle('retShareDir', async () => {
-    return await myfiles.retDatabaseDir(DataPath);
+    try {
+      const filesData = await retDatabaseDir();
+      return filesData;
+    } catch (error) {
+      console.error('数据库查询错误:', error);
+      throw error;
+    }
   });
   // 创建窗口
   createWindow()

@@ -4,19 +4,31 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-// 初始化数据库
-const db = new sqlite3.Database(path.join(__dirname, `..${path.sep}db${path.sep}files.db`));
 
-db.on('error', (err) => {
-    console.error('数据库连接错误:', err.message);
-});
+const DatabasePath = path.join(__dirname, `..${path.sep}db${path.sep}files.db`);
+
+// 返回数据库信息函数
+function retDatabaseDir() {
+    return new Promise((resolve, reject) => {
+        db.all('SELECT * FROM files', [], (err, rows) => {
+            if (err) {
+                return reject(err);
+            }
+            resolve(rows);
+        });
+    });
+}
+
+// 初始化数据库
+const db = new sqlite3.Database(DatabasePath);
+
 
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS files (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     file_name TEXT NOT NULL,
     file_path TEXT NOT NULL UNIQUE,
-    file_hash TEXT NOT NULL,
+    file_hash TEXT NOT NULL UNIQUE,
     file_size INTEGER NOT NULL,
     file_is_load INTEGER NOT NULL CHECK (file_is_load IN (0, 1)),
     file_partner TEXT,
@@ -39,16 +51,20 @@ function calculateHash(filePath) {
 
 // 处理消息
 parentPort.on('message', async (message) => {
-    const { action, filePath, fileName, fileSize, filePartner } = message;
+    const { action, filePath, fileName, fileSize, filePartner, requestId } = message;
 
     try {
-        if (action === 'add' || action === 'change') {
+        if (action === 'retShareDir') {
+            const data = await retDatabaseDir();
+            // 发送结果时带上 requestId 以便主进程匹配请求
+            parentPort.postMessage({ requestId, data });
+        } else if (action === 'add' || action === 'change') {
             const fileHash = await calculateHash(filePath);
             db.run(
                 `INSERT INTO files (file_name, file_path, file_hash, file_size, file_is_load, file_partner) 
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(file_path) 
-        DO UPDATE SET file_hash=excluded.file_hash, file_size=excluded.file_size, updated_at=CURRENT_TIMESTAMP`,
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(file_path) 
+                DO UPDATE SET file_hash=excluded.file_hash, file_size=excluded.file_size, updated_at=CURRENT_TIMESTAMP`,
                 [fileName, filePath, fileHash, fileSize, 1, filePartner],
                 (err) => {
                     if (err) console.error('数据库写入失败:', err.message);
@@ -65,3 +81,47 @@ parentPort.on('message', async (message) => {
         console.error('处理失败:', error.message);
     }
 });
+
+
+
+// 监听 Worker 线程终止事件
+parentPort.on('exit', () => {
+    db.close((err) => {
+        if (err) console.error('数据库关闭失败:', err.message);
+        else console.log('数据库连接已关闭');
+    });
+});
+
+// 在Worker线程退出时关闭数据库连接，避免资源泄漏
+parentPort.on('close', () => {
+    db.close();
+});
+
+// 返回文件夹文件
+function retDatabaseDir() {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(DatabasePath, (err) => {
+            if (err) {
+                console.error('数据库连接失败:', err.message);
+                return reject(err);
+            }
+            console.log('成功连接到 SQLite 数据库');
+        });
+
+        db.all('SELECT * FROM files', [], (err, rows) => {
+            if (err) {
+                console.error('查询失败:', err.message);
+                return reject(err);
+            }
+            resolve(rows);
+        });
+
+        db.close((err) => {
+            if (err) {
+                console.error('关闭数据库失败:', err.message);
+            } else {
+                console.log('数据库已关闭');
+            }
+        });
+    });
+}

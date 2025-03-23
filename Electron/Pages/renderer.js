@@ -2,15 +2,17 @@ const TheBtnShowMyShareList = document.getElementById('ShowMyShareList')
 
 
 TheBtnShowMyShareList.onclick = async () => {
-    const ShareFileArr = await window.MyAPI.MyShareDir();
-    if (ShareFileArr == NaN) {
-        console.log('error');
-        return;
+    try {
+        const filesData = await window.MyAPI.retShareDir();
+        console.log('数据库中的文件数据:', filesData);
+        const TheUlShareFile = document.getElementById('MyShareList');
+        filesData.forEach(element => {
+            const liElement = document.createElement('li');
+            liElement.textContent = element.file_name;
+            TheUlShareFile.appendChild(liElement);
+        });
+
+    } catch (error) {
+        console.error('获取数据失败:', error);
     }
-    const TheUlShareFile = document.getElementById('MyShareList')
-    ShareFileArr.forEach((fileName) => {
-        const liElement = document.createElement('li');
-        liElement.textContent = fileName;
-        TheUlShareFile.appendChild(liElement);
-    });
 }
