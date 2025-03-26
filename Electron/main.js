@@ -2,20 +2,14 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
 const { Worker } = require('worker_threads');
-// const myfiles = require('../my_modules/my_files');
-// const dbWorker = require('../my_modules/dbworker');
 let dbWorker = new Worker(path.join(__dirname, '../my_modules', 'dbworker.js'));
+const ConnectionManager = require(path.join(__dirname, '../my_modules/connection.js'));
 
-// 全局常量定义
-const BROADCAST_PORT = 32145; // 端口号
-const BROADCAST_ADDR = '255.255.255.255'; // 子网掩码
-const Broadcast_Time = 5000;  // 广播时间间隔
 
 // 全局路径定义
 const DataPath = path.join(__dirname, `..${path.sep}Database${path.sep}`);
 const PagePath = path.join(__dirname, `${path.sep}Pages${path.sep}`);
 const ModulePath = path.join(__dirname, `..${path.sep}my_modules${path.sep}`)
-
 
 // 创建界面函数
 function createWindow() {
@@ -28,6 +22,10 @@ function createWindow() {
     }
   });
   win.loadFile(path.join(PagePath, "index.html"));
+
+  // 初始化连接管理器
+  const connectionManager = new ConnectionManager(win);
+  connectionManager.startListening();
 }
 
 
@@ -54,6 +52,7 @@ dbWorker.on('message', (message) => {
 
 
 
+
 // 定义一个函数，通过 dbWorker 请求数据库数据
 function retDatabaseDir() {
   return new Promise((resolve, reject) => {
@@ -63,10 +62,45 @@ function retDatabaseDir() {
   });
 }
 
+// 获取当前本地ip地址
+function retLocalIP() {
+  const os = require('os');
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const intf of interfaces[name]) {
+      if (intf.family === 'IPv4' && !intf.internal) {
+        return intf.address;
+      }
+    }
+  }
+  return 'localhost'; // 回退到localhost
+}
+
+// 随机生成端口号
+function getRandomPort() {
+  return Math.floor(Math.random() * (65535 - 1024)) + 1024;
+}
+
+
+
 
 
 // 准备就绪，开始渲染页面
 app.whenReady().then(() => {
+  // 监听本地ip与port获取
+  ipcMain.handle('get-network-info', () => ({
+    ip: retLocalIP(),
+    port: getRandomPort()
+  }));
+
+  // 创建窗口
+  createWindow()
+  // 启动文件监控
+  const watcherProcess = fork(path.resolve(ModulePath, 'fileWatcher.js'));
+  watcherProcess.on('message', (msg) => {
+    console.log('文件监控消息:', msg);
+  });
+
   // 监听预加载脚本发出的 'retShareDir' 请求
   ipcMain.handle('retShareDir', async () => {
     try {
@@ -77,14 +111,7 @@ app.whenReady().then(() => {
       throw error;
     }
   });
-  // 创建窗口
-  createWindow()
 
-  // 启动文件监控
-  const watcherProcess = fork(path.resolve(ModulePath, 'fileWatcher.js'));
-  watcherProcess.on('message', (msg) => {
-    console.log('文件监控消息:', msg);
-  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
