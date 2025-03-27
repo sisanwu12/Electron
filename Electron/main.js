@@ -76,16 +76,11 @@ ipcMain.handle('local-info', () => {
 })
 
 
-// 监听渲染进程发来的连接请求（包含目标设备的 IP 与端口）
-ipcMain.on('connect-to-peer', (event, arg) => {
-  console.log(`收到连接请求，目标设备：${arg.remoteIp}:${arg.remotePort}`);
-  // 构造连接请求消息
-  const payload = {
-    type: 'connect-request',
-    from: { ip: localIp, port: server.address().port },
-  };
+// 监听渲染进程发来的连接请求
+ipcMain.on('connect-to-peer', (even, args) => {
   // 发送连接请求
-  connection.sendConnectionRequest(arg.remoteIp, arg.remotePort, payload);
+  console.log(`主进程已收到请求连接请求目标：${args.remoteIp}:${args.remotePort} ,正在通知connection`);
+  connection.initiateConnection(args.remoteIp, args.remotePort);
 });
 
 

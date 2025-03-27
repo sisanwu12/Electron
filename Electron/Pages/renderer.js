@@ -47,7 +47,9 @@ window.onload = function () {
 
 document.getElementById('confirmAddUser').addEventListener('click', () => {
     const remoteIp = document.getElementById('userIP').value;
-    const remotePort = parseInt(document.getElementById('userport').value, 10);
+    const remotePort = document.getElementById('userport').value;
+    console.log(remoteIp);
+    console.log(remotePort);
     window.MyAPI.connectToPeer(remoteIp, remotePort);
 });
 
