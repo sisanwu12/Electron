@@ -7,25 +7,44 @@
     <link rel="stylesheet" href="./index.css">
 </head>
 <body>
-  <div id="LocalInfo">
-    <p id="localIP"></p>
-    <p id="localport"></p>
+  <div id="LocalInfo" class="LocalInfo">
+    <p id="local-ip"></p>
+    <p id="local-port"></p>
   </div>
     <div class="container">
         <div class="part all part1">
           <div class="title">共享资源文件</div>
-          <button id = 'ShowMyShareList' class="but2">点击查看已共享文件</button>
-          <ul id = 'MyShareList' class="file1">
+          <button id="ShowMyShareList" class="new-btn">刷新</button>
+          <ul id="MyShareList" class="file1">
             
           </ul>
         </div>
         <div class="part all">
           <div class="title">已连接的用户</div>
-          <ul class="file2">
+          <button id="addUserBtn" class="adduser-btn">添加用户</button>
+          <ul id="connectedUsers" class="file2">
             
           </ul>
         </div>
     </div>
-    <script src = './renderer.js'></script>
+    <div id="addUserModal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>添加用户</h2>
+        <div class="group">
+          <label for="userIP">IP地址:</label>
+          <input type="text" id="userIP" placeholder="输入用户IP地址">
+        </div>
+        <div class="group">
+          <label for="userport">端口号:</label>
+          <input type="text" id="userport" placeholder="输入用户端口号">
+        </div>
+        <button id="confirmAddUser" class="confirm-btn">确认添加</button>
+      </div>
+    </div>
+    
+    <script src="./renderer.js">
+      
+    </script>
 </body>
 </html>

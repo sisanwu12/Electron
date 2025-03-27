@@ -1,10 +1,29 @@
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('addUserBtn').addEventListener('click', function () {
+        document.getElementById('addUserModal').style.display = 'block';
+    });
+
+    document.querySelector('.close').addEventListener('click', function () {
+        document.getElementById('addUserModal').style.display = 'none';
+    });
+
+    window.addEventListener('click', function (event) {
+        if (event.target == document.getElementById('addUserModal')) {
+            document.getElementById('addUserModal').style.display = 'none';
+        }
+    });
+});
+
+
+// 通信部分
 const TheBtnShowMyShareList = document.getElementById('ShowMyShareList')
 
 TheBtnShowMyShareList.onclick = async () => {
     try {
+        const TheUlShareFile = document.getElementById('MyShareList');
+        TheUlShareFile.innerHTML = '';
         const filesData = await window.MyAPI.retShareDir();
         console.log('数据库中的文件数据:', filesData);
-        const TheUlShareFile = document.getElementById('MyShareList');
         filesData.forEach(element => {
             const liElement = document.createElement('li');
             liElement.textContent = element.file_name;
@@ -16,14 +35,19 @@ TheBtnShowMyShareList.onclick = async () => {
     }
 }
 
-window.MyAPI.getNetworkInfo()
-    .then(info => {
-        console.log('IP地址:', info.ip);
-        console.log('端口号:', info.port);
-        // 显示获取到的信息
-        const localIP = document.getElementById('localIP');
-        localIP.textContent = `本地IP地址:${info.ip}`;
-        const localport = document.getElementById('localport');
-        localport.textContent = `使用端口号：${info.port}`;
+
+window.onload = function () {
+    MyAPI.onLocalInfo().then(data => {
+        const ip = data.ip;
+        const port = data.port;
+        document.getElementById('local-ip').innerText = `本机 IP: ${ip}`;
+        document.getElementById('local-port').innerText = `占用端口: ${port}`;
     })
-    .catch(err => console.error('获取信息失败:', err));
+};
+
+document.getElementById('confirmAddUser').addEventListener('click', () => {
+    const remoteIp = document.getElementById('userIP').value;
+    const remotePort = parseInt(document.getElementById('userport').value, 10);
+    window.MyAPI.connectToPeer(remoteIp, remotePort);
+});
+

@@ -3,7 +3,7 @@ const path = require('path');
 const { fork } = require('child_process');
 const { Worker } = require('worker_threads');
 let dbWorker = new Worker(path.join(__dirname, '../my_modules', 'dbworker.js'));
-const ConnectionManager = require(path.join(__dirname, '../my_modules/connection.js'));
+const connection = require(path.join(__dirname, '../my_modules/connection.js'));
 
 
 // 全局路径定义
@@ -11,22 +11,6 @@ const DataPath = path.join(__dirname, `..${path.sep}Database${path.sep}`);
 const PagePath = path.join(__dirname, `${path.sep}Pages${path.sep}`);
 const ModulePath = path.join(__dirname, `..${path.sep}my_modules${path.sep}`)
 
-// 创建界面函数
-function createWindow() {
-  const win = new BrowserWindow({
-    width: 1000,
-    height: 800,
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: path.join(__dirname, './preload.js')
-    }
-  });
-  win.loadFile(path.join(PagePath, "index.html"));
-
-  // 初始化连接管理器
-  const connectionManager = new ConnectionManager(win);
-  connectionManager.startListening();
-}
 
 
 // 用于管理请求—响应
@@ -50,9 +34,6 @@ dbWorker.on('message', (message) => {
   }
 });
 
-
-
-
 // 定义一个函数，通过 dbWorker 请求数据库数据
 function retDatabaseDir() {
   return new Promise((resolve, reject) => {
@@ -62,39 +43,74 @@ function retDatabaseDir() {
   });
 }
 
-// 获取当前本地ip地址
-function retLocalIP() {
+// 获取本机局域网 IP（选择第一个非内网 IPv4 地址）
+function getLocalIp() {
   const os = require('os');
   const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const intf of interfaces[name]) {
-      if (intf.family === 'IPv4' && !intf.internal) {
-        return intf.address;
+  for (const iface in interfaces) {
+    for (const alias of interfaces[iface]) {
+      if (alias.family === 'IPv4' && !alias.internal) {
+        return alias.address;
       }
     }
   }
-  return 'localhost'; // 回退到localhost
+  return '127.0.0.1';
 }
 
-// 随机生成端口号
-function getRandomPort() {
-  return Math.floor(Math.random() * (65535 - 1024)) + 1024;
+const localIp = getLocalIp();
+let localPort;
+// 创建一个 TCP 服务器，在端口 0 上监听，系统会分配一个随机端口
+const net = require('net');
+const server = net.createServer();
+server.listen(0, localIp, () => {
+  const address = server.address();
+  localPort = address.port;
+  console.log(`主进程: 本地 IP ${localIp}，随机端口 ${localPort}`);
+  // 初始化 connection.js 模块，传入本地 IP 与随机端口
+  connection.initialize(localIp, localPort);
+});
+
+// 将本地信息通过 IPC 发送给渲染进程
+ipcMain.handle('local-info', () => {
+  return { ip: localIp, port: localPort }
+})
+
+
+// 监听渲染进程发来的连接请求（包含目标设备的 IP 与端口）
+ipcMain.on('connect-to-peer', (event, arg) => {
+  console.log(`收到连接请求，目标设备：${arg.remoteIp}:${arg.remotePort}`);
+  // 构造连接请求消息
+  const payload = {
+    type: 'connect-request',
+    from: { ip: localIp, port: server.address().port },
+  };
+  // 发送连接请求
+  connection.sendConnectionRequest(arg.remoteIp, arg.remotePort, payload);
+});
+
+
+// 创建界面函数
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1000,
+    height: 800,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, './preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    }
+  });
+  win.loadFile(path.join(PagePath, './index.html'));
 }
-
-
-
 
 
 // 准备就绪，开始渲染页面
-app.whenReady().then(() => {
-  // 监听本地ip与port获取
-  ipcMain.handle('get-network-info', () => ({
-    ip: retLocalIP(),
-    port: getRandomPort()
-  }));
+app.whenReady().then(async () => {
 
   // 创建窗口
-  createWindow()
+  createWindow();
+
   // 启动文件监控
   const watcherProcess = fork(path.resolve(ModulePath, 'fileWatcher.js'));
   watcherProcess.on('message', (msg) => {

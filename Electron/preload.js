@@ -4,5 +4,13 @@ contextBridge.exposeInMainWorld('MyAPI', {
     retShareDir: async () => {
         return await ipcRenderer.invoke('retShareDir');
     },
-    getNetworkInfo: () => ipcRenderer.invoke('get-network-info')
+    // 接收主进程发送的本机信息
+    onLocalInfo: () => {
+        return ipcRenderer.invoke('local-info');
+    },
+
+    // 向主进程发送连接请求（目标 IP 与端口）
+    connectToPeer: (remoteIp, remotePort) => {
+        ipcRenderer.send('connect-to-peer', { remoteIp, remotePort });
+    }
 })
