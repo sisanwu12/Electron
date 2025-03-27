@@ -12,5 +12,6 @@ contextBridge.exposeInMainWorld('MyAPI', {
     // 向主进程发送连接请求（目标 IP 与端口）
     connectToPeer: (remoteIp, remotePort) => {
         ipcRenderer.send('connect-to-peer', { remoteIp, remotePort });
-    }
+    },
+    haveLink: (callback) => ipcRenderer.on('data-channel-open', (event, data) => callback(data)),
 })

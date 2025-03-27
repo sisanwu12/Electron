@@ -5,11 +5,18 @@ const connections = new Map();
 const rtcConfig = { iceServers: [] };
 // UDP 信令 socket，用于收发信令消息
 const signalingSocket = dgram.createSocket('udp4');
+const { ipcMain } = require('electron');
 // 初始化：绑定本地 IP 与端口
 function initialize(ip, port) {
     signalingSocket.bind(port, () => {
         console.log(`connection.js: 正在监听本机 ${port} 端口`);
     });
+}
+
+let mainWindow;
+// 获取主进程API
+function getWin(win) {
+    mainWindow = win;
 }
 
 // 监听来自其他设备的消息
@@ -136,6 +143,11 @@ async function handleAnswer(answerSDP, key) {
 function setupDataChannel(channel, key) {
     channel.onopen = () => {
         console.log(`数据通道 (key: ${key}) 已打开`);
+        if (mainWindow) {
+            mainWindow.webContents.send('data-channel-open', key);
+        }
+        const fileTransfer = require('./fileTransfer');
+        fileTransfer.setDataChannel(channel);
     };
 
     channel.onmessage = (event) => {
@@ -154,6 +166,7 @@ function setupDataChannel(channel, key) {
 
 // 导出接口
 module.exports = {
+    getWin,
     initiateConnection,
     initialize,
     // 你也可以导出一个 sendMessage 方法，通过指定 key 发送消息

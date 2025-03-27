@@ -59,7 +59,6 @@ function getLocalIp() {
 
 const localIp = getLocalIp();
 let localPort;
-// 创建一个 TCP 服务器，在端口 0 上监听，系统会分配一个随机端口
 const net = require('net');
 const server = net.createServer();
 server.listen(0, localIp, () => {
@@ -97,26 +96,29 @@ function createWindow() {
     }
   });
   win.loadFile(path.join(PagePath, './index.html'));
+  return win;
 }
+
+// 启动文件监控
+const watcherProcess = fork(path.resolve(ModulePath, 'fileWatcher.js'));
+watcherProcess.on('message', (msg) => {
+  console.log('文件监控消息:', msg);
+});
 
 
 // 准备就绪，开始渲染页面
 app.whenReady().then(async () => {
 
   // 创建窗口
-  createWindow();
-
-  // 启动文件监控
-  const watcherProcess = fork(path.resolve(ModulePath, 'fileWatcher.js'));
-  watcherProcess.on('message', (msg) => {
-    console.log('文件监控消息:', msg);
-  });
+  const mainWindow = createWindow();
+  // 将主窗口传入connection.js
+  connection.getWin(mainWindow);
 
   // 监听预加载脚本发出的 'retShareDir' 请求
   ipcMain.handle('retShareDir', async () => {
     try {
       const filesData = await retDatabaseDir();
-      return filesData;
+      return { filesData, localIp };
     } catch (error) {
       console.error('数据库查询错误:', error);
       throw error;

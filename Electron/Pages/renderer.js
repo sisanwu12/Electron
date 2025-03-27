@@ -22,9 +22,10 @@ TheBtnShowMyShareList.onclick = async () => {
     try {
         const TheUlShareFile = document.getElementById('MyShareList');
         TheUlShareFile.innerHTML = '';
-        const filesData = await window.MyAPI.retShareDir();
-        console.log('数据库中的文件数据:', filesData);
-        filesData.forEach(element => {
+        const data = await window.MyAPI.retShareDir();
+        const files = data.filesData;
+        console.log('数据库中的文件数据:', files);
+        files.forEach(element => {
             const liElement = document.createElement('li');
             liElement.textContent = element.file_name;
             TheUlShareFile.appendChild(liElement);
@@ -53,3 +54,10 @@ document.getElementById('confirmAddUser').addEventListener('click', () => {
     window.MyAPI.connectToPeer(remoteIp, remotePort);
 });
 
+window.MyAPI.haveLink((data) => {
+    console.log('连接建立成功，对方 IP:', data);
+    const UserUL = document.getElementById('connectedUsers');
+    const newLi = document.createElement('li');
+    newLi.textContent = data;
+    UserUL.appendChild(newLi);
+});

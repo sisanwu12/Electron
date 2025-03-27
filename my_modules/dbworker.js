@@ -125,3 +125,36 @@ function retDatabaseDir() {
         });
     });
 }
+
+
+// 更新信息函数
+function UpdateFileInfo(fileInfo) {
+    return new Promise((resolve, reject) => {
+        // 比如根据 fileInfo.id 判断数据库中是否已有记录
+        db.run(
+            `INSERT OR REPLACE INTO files 
+         (id, file_name, file_partner, file_path, file_size, file_hash, file_is_load, load_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                fileInfo.id,
+                fileInfo.file_name,
+                fileInfo.file_partner,
+                fileInfo.file_path,
+                fileInfo.file_size,
+                fileInfo.file_hash,
+                fileInfo.file_is_load,
+                fileInfo.load_path
+            ],
+            function (err) {
+                if (err) {
+                    return reject(err);
+                }
+                resolve();
+            }
+        );
+    });
+}
+
+module.exports = {
+    UpdateFileInfo
+};
