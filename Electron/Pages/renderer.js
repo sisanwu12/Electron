@@ -14,9 +14,19 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
+// 存储文件元数据
+const fileMap = new Map();
 
 // 通信部分
 const TheBtnShowMyShareList = document.getElementById('ShowMyShareList')
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 
 TheBtnShowMyShareList.onclick = async () => {
     try {
@@ -25,9 +35,35 @@ TheBtnShowMyShareList.onclick = async () => {
         const data = await window.MyAPI.retShareDir();
         const files = data.filesData;
         console.log('数据库中的文件数据:', files);
+
         files.forEach(element => {
             const liElement = document.createElement('li');
-            liElement.textContent = element.file_name;
+            const fileName = document.createElement('span');
+            // 存入map
+            fileMap.set(element.file_hash, element);
+            fileName.className = 'file-name';
+            fileName.textContent = element.file_name;
+            liElement.appendChild(fileName);
+            const fileSize = document.createElement('span');
+            fileSize.className = 'file-size';
+            fileSize.textContent = formatFileSize(element.file_size)
+            liElement.appendChild(fileSize);
+            const btn = document.createElement('button');
+            if (element.file_is_load) {
+                btn.className = 'local';
+                btn.textContent = '本地';
+            } else {
+                btn.className = 'download';
+                btn.id = element.file_hash;
+                btn.textContent = '下载';
+                // 添加点击事件监听
+                button.addEventListener('click', function () {
+                    // 通过 Map 获取完整文件信息
+                    const fileInfo = fileMap.get(this.id);
+                    MyAPI.Download(fileInfo);
+                })
+            }
+            liElement.appendChild(btn);
             TheUlShareFile.appendChild(liElement);
         });
 
@@ -35,7 +71,6 @@ TheBtnShowMyShareList.onclick = async () => {
         console.error('获取数据失败:', error);
     }
 }
-
 
 window.onload = function () {
     MyAPI.onLocalInfo().then(data => {

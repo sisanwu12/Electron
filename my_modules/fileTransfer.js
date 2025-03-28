@@ -1,44 +1,162 @@
 // fileTransfer.js
 let dataChannel = null;
+let mainWindow;
+// 获取主进程API
+function getWin(win) {
+    mainWindow = win;
+}
+
+
+// 存储接收端的临时数据
+const receivingFiles = new Map();
 
 /**
  * 设置数据通道
  * @param {RTCDataChannel} channel - 已建立的 WebRTC 数据通道
  */
-function setDataChannel(channel) {
+function setDataChannel(channel, key) {
     dataChannel = channel;
-    console.log('fileTransfer.js: 数据通道已设置');
-    // 当数据通道打开后，主动发送文件元信息
-    dataChannel.onopen = () => {
-        console.log('fileTransfer.js: 数据通道打开');
-        // 当数据通道打开时主动发送文件元信息
-        sendDatabaseMetadata();
-    };
+    console.log('fileTransfer.js: 数据通道打开');
+    // 当数据通道打开时主动发送文件元信息
+    sendDatabaseMetadata();
+    mainWindow.webContents.send('data-channel-open', key);
 }
 
 /**
  * 发送文件元信息
- * 此处假设我们通过主进程的 retDatabaseDir() 获取文件元信息数组
+ * 通过主进程的 retDatabaseDir() 获取文件元信息数组
  */
-function sendDatabaseMetadata() {
+async function sendDatabaseMetadata() {
     if (!dataChannel || dataChannel.readyState !== 'open') {
         console.error('fileTransfer.js: 数据通道未打开，无法发送文件元信息');
         return;
     }
 
-    // 假设我们通过 IPC 或远程模块获取主进程的 retDatabaseDir() 返回的数据
-    window.MyAPI.retShareDir().then((data) => {
+    // 获取主进程的 retDatabaseDir() 返回的数据
+    const mainAPI = require('../Electron/main');
+    const filesData = await mainAPI.retDatabaseDir();
+    const message = {
+        type: 'db-file-metadata',
+        payload: filesData,
+    };
+    dataChannel.send(JSON.stringify(message));
+    console.log('fileTransfer.js: 已发送文件元信息', message);
+}
+
+/**
+ * 发送文件下载请求给对方
+ * @param {Object} fileMetadata 文件元信息
+ */
+function sendFileDownloadRequest(fileMetadata) {
+    if (!dataChannel || dataChannel.readyState !== 'open') {
+        console.error('fileTransfer: 数据通道未打开，无法发送下载请求');
+        return;
+    }
+    const message = {
+        type: 'file-download-request',
+        payload: fileMetadata
+    };
+    dataChannel.send(JSON.stringify(message));
+    console.log('fileTransfer: 已发送文件下载请求', fileMetadata);
+}
+
+/**
+ * 收到 file-download-request 后，读取本地文件并分块发送
+ */
+function sendFileToRemote({ fileId, fileName, filePath, size }) {
+    if (!dataChannel || dataChannel.readyState !== 'open') {
+        console.error('fileTransfer: 数据通道未打开，无法发送文件');
+        return;
+    }
+
+    // 每次读取 16KB（可自定义）
+    const chunkSize = 16 * 1024;
+    const readStream = fs.createReadStream(filePath, { highWaterMark: chunkSize });
+
+    let chunkIndex = 0;
+    readStream.on('data', (chunk) => {
+        chunkIndex++;
+        // 这里可以把 chunk 转为 base64 或者 Buffer -> string
+        const base64Chunk = chunk.toString('base64');
+
         const message = {
-            type: 'db-file-metadata',
-            payload: data.filesData,
-            ip: data.localIp
+            type: 'file-chunk',
+            payload: {
+                fileId,
+                fileName,
+                chunkIndex,
+                chunkData: base64Chunk
+            }
         };
         dataChannel.send(JSON.stringify(message));
-        console.log('fileTransfer.js: 已发送文件元信息', message);
-    }).catch((err) => {
-        console.error('获取文件元信息失败:', err);
+    });
+
+    readStream.on('end', () => {
+        // 发送传输完成消息
+        const completeMsg = {
+            type: 'file-transfer-complete',
+            payload: {
+                fileId,
+                fileName
+            }
+        };
+        dataChannel.send(JSON.stringify(completeMsg));
+        console.log(`fileTransfer: 文件发送完成 ${fileName}`);
+    });
+
+    readStream.on('error', (err) => {
+        console.error('fileTransfer: 读取文件失败:', err);
+        // 发送错误消息
+        // TODO
     });
 }
+
+/**
+ * 收到文件分块
+ */
+function receiveFileChunk({ fileId, fileName, chunkIndex, chunkData }) {
+    // 如果没在 receivingFiles 中，就初始化
+    if (!receivingFiles.has(fileId)) {
+        receivingFiles.set(fileId, []);
+    }
+    const chunks = receivingFiles.get(fileId);
+
+    // 将 base64 转回 Buffer
+    const buffer = Buffer.from(chunkData, 'base64');
+    chunks.push({ index: chunkIndex, buffer });
+    const fs = require('fs');
+}
+
+/**
+ * 文件传输完成，合并分块并保存到本地
+ */
+function finalizeFileTransfer({ fileId, fileName }) {
+    const chunks = receivingFiles.get(fileId);
+    if (!chunks) {
+        console.error('fileTransfer: 未找到对应文件ID的分块');
+        return;
+    }
+    // 按照 chunkIndex 排序后合并
+    chunks.sort((a, b) => a.index - b.index);
+    const buffers = chunks.map(c => c.buffer);
+    const fileBuffer = Buffer.concat(buffers);
+
+    // 写入磁盘
+    const fileWatcher = require('./fileWatcher');
+    const path = require('path')
+    const savePath = path.join(fileWatcher.retDataPath, `.${path.sep}${fileName}`);
+    fs.writeFileSync(savePath, fileBuffer);
+    console.log(`fileTransfer: 文件 ${fileName} 已保存到 ${savePath}`);
+
+    // 清理
+    receivingFiles.delete(fileId);
+
+    // 如果需要通知渲染进程，可以：
+    if (mainWindow) {
+        mainWindow.webContents.send('file-transfer-complete', { fileId, fileName, savePath });
+    }
+}
+
 
 /**
  * 接收到数据通道数据时的处理
@@ -51,26 +169,28 @@ async function handleIncomingData(data) {
             case 'db-file-metadata':
                 console.log('fileTransfer.js: 收到文件元信息');
                 const dbworker = require('./dbworker');
-                // 可根据业务逻辑更新本地数据库、UI 显示等
+                // 更新本地数据库
                 for (const fileInfo of message.payload) {
                     fileInfo.file_partner = message.ip;
+                    fileInfo.file_is_load = 0;
                     await dbworker.UpdateFileInfo(fileInfo);
                 }
                 console.log('所有文件元信息已更新并存入数据库');
                 break;
-            case 'file-download':
+            case 'file-download-request':
                 console.log('fileTransfer.js: 收到文件下载请求', message.payload);
                 // 根据文件下载请求，启动文件传输流程
-
-
-
-
+                sendFileToRemote(message.payload);
                 break;
-            // 其他类型的消息
+            case 'file-chunk':
+                // 收到文件分块
+                receiveFileChunk(message.payload);
+                break;
 
-
-
-
+            case 'file-transfer-complete':
+                // 文件传输完成
+                finalizeFileTransfer(message.payload);
+                break;
             default:
                 console.warn('fileTransfer.js: 未知消息类型:', message.type);
         }
@@ -80,7 +200,9 @@ async function handleIncomingData(data) {
 }
 
 module.exports = {
+    getWin,
     setDataChannel,
     sendDatabaseMetadata,
-    handleIncomingData
+    handleIncomingData,
+    sendFileDownloadRequest
 };

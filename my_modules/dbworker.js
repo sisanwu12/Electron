@@ -7,20 +7,38 @@ const path = require('path');
 
 const DatabasePath = path.join(__dirname, `..${path.sep}db${path.sep}files.db`);
 
-// 返回数据库信息函数
-function retDatabaseDir() {
-    return new Promise((resolve, reject) => {
-        db.all('SELECT * FROM files', [], (err, rows) => {
-            if (err) {
-                return reject(err);
+// 初始化数据库
+const db = new sqlite3.Database(DatabasePath, (err) => {
+    if (err) {
+        console.error('数据库连接失败:', err.message);
+    } else {
+        console.log('成功连接到 SQLite 数据库:', DatabasePath);
+        cleanInvalidRecords();
+    }
+});
+
+// 处理无效记录
+function cleanInvalidRecords() {
+    // 查询所有记录
+    db.all('SELECT id, file_path FROM files', [], (err, rows) => {
+        if (err) {
+            console.error('查询记录失败:', err.message);
+            return;
+        }
+        rows.forEach((record) => {
+            // 检查文件是否存在，注意file_path如果是URL格式则需转换为本地路径
+            if (!fs.existsSync(record.file_path)) {
+                db.run('DELETE FROM files WHERE id = ?', [record.id], (err) => {
+                    if (err) {
+                        console.error(`删除记录 id=${record.id} 失败:`, err.message);
+                    } else {
+                        console.log(`删除无效记录 id=${record.id}, file_path=${record.file_path}`);
+                    }
+                });
             }
-            resolve(rows);
         });
     });
 }
-
-// 初始化数据库
-const db = new sqlite3.Database(DatabasePath);
 
 
 db.serialize(() => {

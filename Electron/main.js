@@ -2,15 +2,14 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
 const { Worker } = require('worker_threads');
-let dbWorker = new Worker(path.join(__dirname, '../my_modules', 'dbworker.js'));
+let dbWorker = new Worker(path.join(__dirname, '../my_modules/dbworker.js'));
 const connection = require(path.join(__dirname, '../my_modules/connection.js'));
+const fileTransfer = require(path.join(__dirname, '../my_modules/fileTransfer'));
 
 
 // 全局路径定义
-const DataPath = path.join(__dirname, `..${path.sep}Database${path.sep}`);
 const PagePath = path.join(__dirname, `${path.sep}Pages${path.sep}`);
-const ModulePath = path.join(__dirname, `..${path.sep}my_modules${path.sep}`)
-
+const ModulePath = path.join(__dirname, `..${path.sep}my_modules${path.sep}`);
 
 
 // 用于管理请求—响应
@@ -20,7 +19,6 @@ let nextRequestId = 1;
 function generateRequestId() {
   return nextRequestId++;
 }
-
 dbWorker.on('message', (message) => {
   const { requestId, data, error } = message;
   if (pendingRequests.has(requestId)) {
@@ -59,21 +57,6 @@ function getLocalIp() {
 
 const localIp = getLocalIp();
 let localPort;
-const net = require('net');
-const server = net.createServer();
-server.listen(0, localIp, () => {
-  const address = server.address();
-  localPort = address.port;
-  console.log(`主进程: 本地 IP ${localIp}，随机端口 ${localPort}`);
-  // 初始化 connection.js 模块，传入本地 IP 与随机端口
-  connection.initialize(localIp, localPort);
-});
-
-// 将本地信息通过 IPC 发送给渲染进程
-ipcMain.handle('local-info', () => {
-  return { ip: localIp, port: localPort }
-})
-
 
 // 监听渲染进程发来的连接请求
 ipcMain.on('connect-to-peer', (even, args) => {
@@ -96,7 +79,9 @@ function createWindow() {
     }
   });
   win.loadFile(path.join(PagePath, './index.html'));
-  return win;
+  win.webContents.on('did-finish-load', () => {
+    fileTransfer.getWin(win);
+  });
 }
 
 // 启动文件监控
@@ -109,10 +94,26 @@ watcherProcess.on('message', (msg) => {
 // 准备就绪，开始渲染页面
 app.whenReady().then(async () => {
 
+  // 将本地信息通过 IPC 发送给渲染进程
+  ipcMain.handle('local-info', () => {
+    return { ip: localIp, port: localPort }
+  })
+
+  const net = require('net');
+  const server = net.createServer();
+  server.listen(0, localIp, () => {
+    const address = server.address();
+    localPort = address.port;
+    console.log(`主进程: 本地 IP ${localIp}，随机端口 ${localPort}`);
+    // 初始化 connection.js 模块，传入本地 IP 与随机端口
+    connection.initialize(localIp, localPort);
+  });
+
+
+  const fileWatcher = require('../my_modules/fileWatcher');
+  fileWatcher.InitFileWatcher(app.getPath('home'));
   // 创建窗口
-  const mainWindow = createWindow();
-  // 将主窗口传入connection.js
-  connection.getWin(mainWindow);
+  createWindow();
 
   // 监听预加载脚本发出的 'retShareDir' 请求
   ipcMain.handle('retShareDir', async () => {
@@ -125,6 +126,11 @@ app.whenReady().then(async () => {
     }
   });
 
+  // 监听预加载脚本发出的 'Download-request' 请求
+  ipcMain.on('Download-request', (event, fileInfo) => {
+    console.log(`主进程收到下载请求：${fileInfo},正在通知fileTransfer发送请求`);
+    fileTransfer.sendFileDownloadRequest(fileInfo);
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -138,3 +144,7 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
+
+module.exports = {
+  retDatabaseDir,
+}

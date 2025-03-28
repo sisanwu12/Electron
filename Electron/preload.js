@@ -14,4 +14,5 @@ contextBridge.exposeInMainWorld('MyAPI', {
         ipcRenderer.send('connect-to-peer', { remoteIp, remotePort });
     },
     haveLink: (callback) => ipcRenderer.on('data-channel-open', (event, data) => callback(data)),
+    Download: (fileInfo) => ipcRenderer.send('Download-request', fileInfo),
 })

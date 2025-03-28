@@ -12,6 +12,7 @@ body {
 
 .LocalInfo{
   position: relative;
+  left: 20px;
   top: 10px;
   display: inline-block;
 }
@@ -26,7 +27,7 @@ body {
 .container {
   display: flex;
   justify-content: space-evenly;
-  margin-top: 18px;
+  margin-top: 22px;
 }
 
 .all {
@@ -57,7 +58,7 @@ body {
 }
 
 .part1{
-  width: 500px;
+  width: 550px;
 }
 
 ul {
@@ -65,21 +66,68 @@ ul {
 }
 
 li {
-  height: 40px;
+  position: relative;
+  left:30px;
+  width: 450px;
+  height: 50px;
   border: 1px solid #ccc;
   background-color: rgb(246, 244, 244);
   margin-bottom: 10px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  padding: 0 15px;
   border-radius: 5px;
   transition: all 0.3s ease;
 }
 
 li:hover {
   transform: scale(1.05);
-  background-color: wheat;
+  background-color: #BEBEBE;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.file-name {
+  width: 100px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #6c6a6a;
+}
+
+.file-size {
+  text-align: center;
+  color: #6c6a6a;
+}
+
+.local {
+  width: 50px;
+  height: 30px;
+  background-color: #d4edda;
+  color: #66cc89;
+  border: none;
+  border-radius: 15px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.download {
+  width: 50px;
+  height: 30px;
+  background-color: #cce5ff;
+  color: #3b6b9e;
+  cursor: pointer;
+  border: none;
+  border-radius: 15px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.file-tag.download:hover {
+  background-color: #b8daff;
 }
 
 .new-btn {
