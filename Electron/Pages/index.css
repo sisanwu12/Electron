@@ -61,17 +61,20 @@ body {
   width: 550px;
 }
 
+.part2{
+  width: 320px;
+}
+
 ul {
   margin-top: 20px;
 }
 
-li {
+li{
   position: relative;
-  left:30px;
-  width: 450px;
   height: 50px;
   border: 1px solid #ccc;
   background-color: rgb(246, 244, 244);
+  color: #6c6a6a;
   margin-bottom: 10px;
   display: flex;
   align-items: center;
@@ -81,6 +84,18 @@ li {
   transition: all 0.3s ease;
 }
 
+.part1 li {
+  width: 440px;
+  left: 30px;
+}
+
+.part2 li {
+  display: flex;
+  justify-content: center;
+  width: 200px;
+  left: 35px;
+}
+
 li:hover {
   transform: scale(1.05);
   background-color: #BEBEBE;
@@ -88,13 +103,35 @@ li:hover {
 }
 
 .file-name {
-  width: 100px;
+  width: 120px;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #6c6a6a;
+  position: relative;
+  z-index: 1;
 }
+
+.file-name:hover {
+  line-height: 50px;
+  width: 440px;
+  height: 50px;
+  color: #6c6a6a;
+  z-index: 100;
+  white-space: normal;
+  text-overflow: clip;
+  overflow: visible;
+}
+
+.file-name:hover~* {
+  visibility: hidden;
+}
+
+li:hover .file-name:hover~* {
+  visibility: hidden;
+}
+
 
 .file-size {
   text-align: center;
@@ -183,7 +220,7 @@ li:hover {
 .adduser-btn {
   position: relative;
   top: -20px;
-  left: 125px;
+  left: 100px;
   width: 80px;
   height: 30px;
   background: rgb(172, 172, 172);

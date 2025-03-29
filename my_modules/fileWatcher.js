@@ -2,8 +2,20 @@ const { Worker } = require('worker_threads');
 const chokidar = require('chokidar');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 let DataPath;
+
+// 计算文件哈希
+function calculateHash(filePath) {
+    return new Promise((resolve, reject) => {
+        const hash = crypto.createHash('sha256');
+        const stream = fs.createReadStream(filePath);
+        stream.on('data', (data) => hash.update(data));
+        stream.on('end', () => resolve(hash.digest('hex')));
+        stream.on('error', reject);
+    });
+}
 
 async function InitFileWatcher(HomePath) {
     const dbWorker = new Worker(path.resolve(__dirname, 'dbWorker.js'));
@@ -37,9 +49,31 @@ async function InitFileWatcher(HomePath) {
         .on('add', (filePath) => {
             if (fileEventCache.has(filePath)) return;
             fileEventCache.add(filePath);
+
             console.log(`文件新增: ${filePath}`);
-            dbWorker.postMessage({ action: 'add', ...getFileDetails(filePath) });
-            setTimeout(() => fileEventCache.delete(filePath), 1000); // 1秒后删除缓存
+
+            // 异步计算哈希值
+            const processFile = async () => {
+                try {
+                    const fileHash = await calculateHash(filePath); // 计算哈希
+                    const fileDetails = getFileDetails(filePath);    // 获取其他元数据
+
+                    // 发送包含哈希值的完整数据到数据库
+                    dbWorker.postMessage({
+                        action: 'add',
+                        ...fileDetails,
+                        fileHash,       // 添加哈希值
+                        filePath         // 确保传递 filePath
+                    });
+                    console.log(`已处理新增文件: ${filePath}`);
+                } catch (error) {
+                    console.error(`处理文件 ${filePath} 失败:`, error.message);
+                } finally {
+                    setTimeout(() => fileEventCache.delete(filePath), 1000); // 清理缓存
+                }
+            };
+
+            processFile(); // 触发异步处理
         })
         .on('change', (filePath) => {
             if (fileEventCache.has(filePath)) return;

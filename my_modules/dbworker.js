@@ -1,6 +1,5 @@
 const { parentPort } = require('worker_threads');
 const sqlite3 = require('sqlite3').verbose();
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -56,39 +55,46 @@ db.serialize(() => {
     });
 });
 
-// 计算文件哈希
-function calculateHash(filePath) {
-    return new Promise((resolve, reject) => {
-        const hash = crypto.createHash('sha256');
-        const stream = fs.createReadStream(filePath);
-        stream.on('data', (data) => hash.update(data));
-        stream.on('end', () => resolve(hash.digest('hex')));
-        stream.on('error', reject);
-    });
-}
-
 // 处理消息
 parentPort.on('message', async (message) => {
-    const { action, filePath, fileName, fileSize, filePartner, requestId } = message;
-
+    const { action, filePath, fileName, fileSize, filePartner, fileHash, requestId } = message;
     try {
         if (action === 'retShareDir') {
             const data = await retDatabaseDir();
             // 发送结果时带上 requestId 以便主进程匹配请求
             parentPort.postMessage({ requestId, data });
         } else if (action === 'add' || action === 'change') {
-            const fileHash = await calculateHash(filePath);
-            db.run(
-                `INSERT INTO files (file_name, file_path, file_hash, file_size, file_is_load, file_partner) 
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(file_path) 
-                DO UPDATE SET file_hash=excluded.file_hash, file_size=excluded.file_size, updated_at=CURRENT_TIMESTAMP`,
-                [fileName, filePath, fileHash, fileSize, 1, filePartner],
-                (err) => {
-                    if (err) console.error('数据库写入失败:', err.message);
-                    else console.log(`数据库记录已更新: ${filePath}`);
+            // 检查哈希是否已存在
+            db.get('SELECT file_path FROM files WHERE file_hash = ?', [fileHash], async (err, row) => {
+                if (err) {
+                    console.error('查询哈希失败:', err.message);
+                    return;
                 }
-            );
+
+                if (row) {
+                    // 哈希已存在，执行更新或跳过
+                    console.log(`文件哈希 ${fileHash} 已存在，路径为 ${row.file_path}`);
+                    db.run(
+                        'UPDATE files SET file_size = ?, updated_at = CURRENT_TIMESTAMP WHERE file_hash = ?',
+                        [fileSize, fileHash],
+                        (err) => {
+                            if (err) console.error('更新记录失败:', err.message);
+                            else console.log(`已更新文件大小: ${filePath}`);
+                        }
+                    );
+                } else {
+                    // 哈希不存在，插入新记录
+                    db.run(
+                        `INSERT INTO files (file_name, file_path, file_hash, file_size, file_is_load, file_partner)
+                        VALUES (?, ?, ?, ?, ?, ?)`,
+                        [fileName, filePath, fileHash, fileSize, 1, filePartner],
+                        (err) => {
+                            if (err) console.error('数据库写入失败:', err.message);
+                            else console.log(`新文件已插入: ${filePath}`);
+                        }
+                    );
+                }
+            });
         } else if (action === 'delete') {
             db.run(`UPDATE files SET file_is_load = 0 WHERE file_path = ?`, [filePath], (err) => {
                 if (err) console.error('删除记录失败:', err.message);
@@ -143,36 +149,3 @@ function retDatabaseDir() {
         });
     });
 }
-
-
-// 更新信息函数
-function UpdateFileInfo(fileInfo) {
-    return new Promise((resolve, reject) => {
-        // 比如根据 fileInfo.id 判断数据库中是否已有记录
-        db.run(
-            `INSERT OR REPLACE INTO files 
-         (id, file_name, file_partner, file_path, file_size, file_hash, file_is_load, load_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                fileInfo.id,
-                fileInfo.file_name,
-                fileInfo.file_partner,
-                fileInfo.file_path,
-                fileInfo.file_size,
-                fileInfo.file_hash,
-                fileInfo.file_is_load,
-                fileInfo.load_path
-            ],
-            function (err) {
-                if (err) {
-                    return reject(err);
-                }
-                resolve();
-            }
-        );
-    });
-}
-
-module.exports = {
-    UpdateFileInfo
-};

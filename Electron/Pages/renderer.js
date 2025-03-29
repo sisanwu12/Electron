@@ -32,38 +32,47 @@ TheBtnShowMyShareList.onclick = async () => {
     try {
         const TheUlShareFile = document.getElementById('MyShareList');
         TheUlShareFile.innerHTML = '';
-        const data = await window.MyAPI.retShareDir();
-        const files = data.filesData;
+        const files = await window.MyAPI.retShareDir();
         console.log('数据库中的文件数据:', files);
 
         files.forEach(element => {
             const liElement = document.createElement('li');
-            const fileName = document.createElement('span');
-            // 存入map
-            fileMap.set(element.file_hash, element);
+
+            // 创建文件名元素
+            const fileName = document.createElement('div'); // 改为div以便更好控制
             fileName.className = 'file-name';
             fileName.textContent = element.file_name;
-            liElement.appendChild(fileName);
+            fileName.setAttribute('data-fullname', element.file_name);
+
+            // 创建文件大小元素
             const fileSize = document.createElement('span');
             fileSize.className = 'file-size';
-            fileSize.textContent = formatFileSize(element.file_size)
-            liElement.appendChild(fileSize);
+            fileSize.textContent = formatFileSize(element.file_size);
+
+            // 创建按钮元素
             const btn = document.createElement('button');
-            if (element.file_is_load) {
+            if (element.file_partner === 'localhost') {
                 btn.className = 'local';
                 btn.textContent = '本地';
             } else {
                 btn.className = 'download';
                 btn.id = element.file_hash;
                 btn.textContent = '下载';
-                // 添加点击事件监听
-                button.addEventListener('click', function () {
-                    // 通过 Map 获取完整文件信息
+                btn.addEventListener('click', function () {
                     const fileInfo = fileMap.get(this.id);
+                    console.log(fileInfo);
                     MyAPI.Download(fileInfo);
-                })
+                });
             }
+
+            // 存入map
+            fileMap.set(element.file_hash, element);
+
+            // 添加元素到li
+            liElement.appendChild(fileName);
+            liElement.appendChild(fileSize);
             liElement.appendChild(btn);
+
             TheUlShareFile.appendChild(liElement);
         });
 
@@ -73,7 +82,7 @@ TheBtnShowMyShareList.onclick = async () => {
 }
 
 window.onload = function () {
-    MyAPI.onLocalInfo().then(data => {
+    MyAPI.LocalInfo().then(data => {
         const ip = data.ip;
         const port = data.port;
         document.getElementById('local-ip').innerText = `本机 IP: ${ip}`;

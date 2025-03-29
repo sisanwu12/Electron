@@ -6,6 +6,7 @@ function getWin(win) {
     mainWindow = win;
 }
 
+const peers = new Map();
 
 // 存储接收端的临时数据
 const receivingFiles = new Map();
@@ -35,9 +36,12 @@ async function sendDatabaseMetadata() {
     // 获取主进程的 retDatabaseDir() 返回的数据
     const mainAPI = require('../Electron/main');
     const filesData = await mainAPI.retDatabaseDir();
+    const ownerData = mainAPI.retLocal();
+    const key = `${ownerData.ip}:${ownerData.port}`
     const message = {
         type: 'db-file-metadata',
         payload: filesData,
+        ownerKey: key
     };
     dataChannel.send(JSON.stringify(message));
     console.log('fileTransfer.js: 已发送文件元信息', message);
@@ -124,7 +128,6 @@ function receiveFileChunk({ fileId, fileName, chunkIndex, chunkData }) {
     // 将 base64 转回 Buffer
     const buffer = Buffer.from(chunkData, 'base64');
     chunks.push({ index: chunkIndex, buffer });
-    const fs = require('fs');
 }
 
 /**
@@ -168,12 +171,21 @@ async function handleIncomingData(data) {
         switch (message.type) {
             case 'db-file-metadata':
                 console.log('fileTransfer.js: 收到文件元信息');
-                const dbworker = require('./dbworker');
                 // 更新本地数据库
+                console.log('正在连接数据库');
                 for (const fileInfo of message.payload) {
-                    fileInfo.file_partner = message.ip;
+                    fileInfo.file_partner = message.ownerKey;
                     fileInfo.file_is_load = 0;
-                    await dbworker.UpdateFileInfo(fileInfo);
+                    const fileMetadata = {
+                        filePath: fileInfo.file_path,
+                        fileName: fileInfo.file_name,
+                        fileSize: fileInfo.file_size,
+                        filePartner: fileInfo.file_partner,
+                        fileHash: fileInfo.file_hash
+                    }
+                    const mainAPI = require('../Electron/main');
+                    mainAPI.sendFileMetadataToDb(fileMetadata);
+                    console.log(`已写入${fileInfo.file_hash}`);
                 }
                 console.log('所有文件元信息已更新并存入数据库');
                 break;

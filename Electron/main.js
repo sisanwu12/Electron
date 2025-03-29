@@ -2,14 +2,17 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
 const { Worker } = require('worker_threads');
-let dbWorker = new Worker(path.join(__dirname, '../my_modules/dbworker.js'));
-const connection = require(path.join(__dirname, '../my_modules/connection.js'));
-const fileTransfer = require(path.join(__dirname, '../my_modules/fileTransfer'));
+
 
 
 // 全局路径定义
 const PagePath = path.join(__dirname, `${path.sep}Pages${path.sep}`);
 const ModulePath = path.join(__dirname, `..${path.sep}my_modules${path.sep}`);
+
+
+let dbWorker = new Worker(path.join(ModulePath, 'dbworker.js'));
+const connection = require(path.join(ModulePath, 'connection.js'));
+const fileTransfer = require(path.join(ModulePath, 'fileTransfer'));
 
 
 // 用于管理请求—响应
@@ -41,6 +44,14 @@ function retDatabaseDir() {
   });
 }
 
+// 发送插入信息函数
+function sendFileMetadataToDb(fileMetadata) {
+  const requestId = `request-${Date.now()}-${Math.random()}`;
+  dbWorker.postMessage({ action: 'add', ...fileMetadata, requestId });
+  console.log('已发送文件元信息到 dbworker', fileMetadata);
+}
+
+
 // 获取本机局域网 IP（选择第一个非内网 IPv4 地址）
 function getLocalIp() {
   const os = require('os');
@@ -69,7 +80,7 @@ ipcMain.on('connect-to-peer', (even, args) => {
 // 创建界面函数
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1000,
+    width: 1150,
     height: 800,
     autoHideMenuBar: true,
     webPreferences: {
@@ -91,13 +102,12 @@ watcherProcess.on('message', (msg) => {
 });
 
 
+function retLocal() {
+  return { ip: localIp, port: localPort }
+}
+
 // 准备就绪，开始渲染页面
 app.whenReady().then(async () => {
-
-  // 将本地信息通过 IPC 发送给渲染进程
-  ipcMain.handle('local-info', () => {
-    return { ip: localIp, port: localPort }
-  })
 
   const net = require('net');
   const server = net.createServer();
@@ -105,10 +115,13 @@ app.whenReady().then(async () => {
     const address = server.address();
     localPort = address.port;
     console.log(`主进程: 本地 IP ${localIp}，随机端口 ${localPort}`);
-    // 初始化 connection.js 模块，传入本地 IP 与随机端口
+    // 初始化 connection.js 模块，传入本地 IP
     connection.initialize(localIp, localPort);
   });
-
+  // 将本地信息通过 IPC 发送给渲染进程
+  ipcMain.handle('localInfo', () => {
+    return { ip: localIp, port: localPort }
+  })
 
   const fileWatcher = require('../my_modules/fileWatcher');
   fileWatcher.InitFileWatcher(app.getPath('home'));
@@ -119,7 +132,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('retShareDir', async () => {
     try {
       const filesData = await retDatabaseDir();
-      return { filesData, localIp };
+      return filesData;
     } catch (error) {
       console.error('数据库查询错误:', error);
       throw error;
@@ -128,7 +141,7 @@ app.whenReady().then(async () => {
 
   // 监听预加载脚本发出的 'Download-request' 请求
   ipcMain.on('Download-request', (event, fileInfo) => {
-    console.log(`主进程收到下载请求：${fileInfo},正在通知fileTransfer发送请求`);
+    console.log(`主进程收到下载请求：文件${fileInfo.file_hash},正在通知fileTransfer发送请求`);
     fileTransfer.sendFileDownloadRequest(fileInfo);
   })
 
@@ -147,4 +160,6 @@ app.on('window-all-closed', () => {
 
 module.exports = {
   retDatabaseDir,
+  retLocal,
+  sendFileMetadataToDb
 }

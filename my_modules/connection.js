@@ -5,17 +5,21 @@ const connections = new Map();
 const rtcConfig = { iceServers: [] };
 // UDP 信令 socket，用于收发信令消息
 const signalingSocket = dgram.createSocket('udp4');
+let isInitialized = false;
+let localIp;
+let localPort;
 // 初始化：绑定本地 IP 与端口
 function initialize(ip, port) {
+    if (isInitialized) {
+        console.warn('connection.js: 已经初始化过，跳过重新初始化');
+        return;
+    }
+    localIp = ip;
+    localPort = port
     signalingSocket.bind(port, () => {
-        console.log(`connection.js: 正在监听本机 ${port} 端口`);
+        console.log(`connection.js: 正在监听本机${port}端口`);
+        isInitialized = true;
     });
-}
-
-let mainWindow;
-// 获取主进程API
-function getWin(win) {
-    mainWindow = win;
 }
 
 // 监听来自其他设备的消息
@@ -136,19 +140,20 @@ async function handleAnswer(answerSDP, key) {
     console.log('远端描述已设置');
 }
 
+const fileTransfer = require('./fileTransfer');
+
 /**
  * 统一配置数据通道事件
  */
 function setupDataChannel(channel, key) {
     channel.onopen = () => {
         console.log(`数据通道 (key: ${key}) 已打开`);
-        const fileTransfer = require('./fileTransfer');
         fileTransfer.setDataChannel(channel, key);
     };
 
     channel.onmessage = (event) => {
         console.log(`数据通道 (key: ${key}) 收到消息:`, event.data);
-        // 此处可以调用 fileTransfer.js 或其他模块处理消息
+        fileTransfer.handleIncomingData(event.data);
     };
 
     channel.onclose = () => {
@@ -162,7 +167,6 @@ function setupDataChannel(channel, key) {
 
 // 导出接口
 module.exports = {
-    getWin,
     initiateConnection,
     initialize,
     // 你也可以导出一个 sendMessage 方法，通过指定 key 发送消息

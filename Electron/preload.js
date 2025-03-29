@@ -5,8 +5,8 @@ contextBridge.exposeInMainWorld('MyAPI', {
         return await ipcRenderer.invoke('retShareDir');
     },
     // 接收主进程发送的本机信息
-    onLocalInfo: () => {
-        return ipcRenderer.invoke('local-info');
+    LocalInfo: () => {
+        return ipcRenderer.invoke('localInfo');
     },
 
     // 向主进程发送连接请求（目标 IP 与端口）
