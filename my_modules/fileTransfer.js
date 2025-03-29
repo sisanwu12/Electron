@@ -67,13 +67,17 @@ function sendFileDownloadRequest(fileMetadata) {
 /**
  * 收到 file-download-request 后，读取本地文件并分块发送
  */
-function sendFileToRemote({ fileId, fileName, filePath, size }) {
+function sendFileToRemote(data) {
     if (!dataChannel || dataChannel.readyState !== 'open') {
         console.error('fileTransfer: 数据通道未打开，无法发送文件');
         return;
     }
+    const filePath = data.file_path;
+    const fileName = data.file_name;
+    const fileId = data.file_id;
 
     // 每次读取 16KB（可自定义）
+    const fs = require('fs');
     const chunkSize = 16 * 1024;
     const readStream = fs.createReadStream(filePath, { highWaterMark: chunkSize });
 
@@ -147,7 +151,8 @@ function finalizeFileTransfer({ fileId, fileName }) {
     // 写入磁盘
     const fileWatcher = require('./fileWatcher');
     const path = require('path')
-    const savePath = path.join(fileWatcher.retDataPath, `.${path.sep}${fileName}`);
+    const savePath = path.join(fileWatcher.retDataPath(), `.${path.sep}${fileName}`);
+    const fs = require('fs');
     fs.writeFileSync(savePath, fileBuffer);
     console.log(`fileTransfer: 文件 ${fileName} 已保存到 ${savePath}`);
 
@@ -181,7 +186,8 @@ async function handleIncomingData(data) {
                         fileName: fileInfo.file_name,
                         fileSize: fileInfo.file_size,
                         filePartner: fileInfo.file_partner,
-                        fileHash: fileInfo.file_hash
+                        fileHash: fileInfo.file_hash,
+                        file_is_load: 0
                     }
                     const mainAPI = require('../Electron/main');
                     mainAPI.sendFileMetadataToDb(fileMetadata);

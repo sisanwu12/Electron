@@ -51,7 +51,7 @@ TheBtnShowMyShareList.onclick = async () => {
 
             // 创建按钮元素
             const btn = document.createElement('button');
-            if (element.file_partner === 'localhost') {
+            if (element.file_is_load) {
                 btn.className = 'local';
                 btn.textContent = '本地';
             } else {
@@ -104,4 +104,16 @@ window.MyAPI.haveLink((data) => {
     const newLi = document.createElement('li');
     newLi.textContent = data;
     UserUL.appendChild(newLi);
+});
+
+document.getElementById('localDir').addEventListener('click', async () => {
+    const targetPath = '';
+    try {
+        const result = await window.MyAPI.openFolder(targetPath);
+        if (!result.success) {
+            console.error('打开失败:', result.error);
+        }
+    } catch (error) {
+        console.error('通信错误:', error);
+    }
 });

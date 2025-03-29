@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
 const { Worker } = require('worker_threads');
@@ -81,7 +81,7 @@ ipcMain.on('connect-to-peer', (even, args) => {
 function createWindow() {
   const win = new BrowserWindow({
     width: 1150,
-    height: 800,
+    height: 820,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, './preload.js'),
@@ -136,6 +136,17 @@ app.whenReady().then(async () => {
     } catch (error) {
       console.error('数据库查询错误:', error);
       throw error;
+    }
+  });
+
+
+  ipcMain.handle('open-folder', async (event, folderPath) => {
+    try {
+      // 打开系统文件管理器并定位到指定路径
+      await shell.openPath(path.join(app.getPath('home'), './LanShare'));
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
     }
   });
 

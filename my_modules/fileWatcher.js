@@ -34,7 +34,7 @@ async function InitFileWatcher(HomePath) {
     function getFileDetails(filePath) {
         const stats = fs.statSync(filePath);
         const fileName = path.basename(filePath);
-        return { filePath, fileName, fileSize: stats.size, filePartner: 'localhost' };
+        return { filePath, fileName, fileSize: stats.size, filePartner: 'localhost', file_is_load: 1 };
     }
 
     // 监控文件夹

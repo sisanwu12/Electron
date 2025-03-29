@@ -87,7 +87,7 @@ parentPort.on('message', async (message) => {
                     db.run(
                         `INSERT INTO files (file_name, file_path, file_hash, file_size, file_is_load, file_partner)
                         VALUES (?, ?, ?, ?, ?, ?)`,
-                        [fileName, filePath, fileHash, fileSize, 1, filePartner],
+                        [fileName, filePath, fileHash, fileSize, file_is_load, filePartner],
                         (err) => {
                             if (err) console.error('数据库写入失败:', err.message);
                             else console.log(`新文件已插入: ${filePath}`);
