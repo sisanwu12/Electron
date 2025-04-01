@@ -63,7 +63,8 @@ async function InitFileWatcher(HomePath) {
                         action: 'add',
                         ...fileDetails,
                         fileHash,       // 添加哈希值
-                        filePath         // 确保传递 filePath
+                        filePath,         // 确保传递 filePath
+                        file_is_load: 1
                     });
                     console.log(`已处理新增文件: ${filePath}`);
                 } catch (error) {

@@ -15,5 +15,6 @@ contextBridge.exposeInMainWorld('MyAPI', {
     },
     haveLink: (callback) => ipcRenderer.on('data-channel-open', (event, data) => callback(data)),
     Download: (fileInfo) => ipcRenderer.send('Download-request', fileInfo),
-    openFolder: (folderPath) => ipcRenderer.invoke('open-folder', folderPath)
+    openFolder: (folderPath) => ipcRenderer.invoke('open-folder', folderPath),
+
 })

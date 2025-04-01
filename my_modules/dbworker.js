@@ -57,7 +57,7 @@ db.serialize(() => {
 
 // 处理消息
 parentPort.on('message', async (message) => {
-    const { action, filePath, fileName, fileSize, filePartner, fileHash, requestId } = message;
+    const { action, filePath, fileName, fileSize, filePartner, fileHash, requestId, file_is_load } = message;
     try {
         if (action === 'retShareDir') {
             const data = await retDatabaseDir();
@@ -72,14 +72,21 @@ parentPort.on('message', async (message) => {
                 }
 
                 if (row) {
-                    // 哈希已存在，执行更新或跳过
-                    console.log(`文件哈希 ${fileHash} 已存在，路径为 ${row.file_path}`);
+                    // 哈希存在时，更新 file_size 和 updated_at，同时若 file_is_load 不为 1 则设为 1
                     db.run(
-                        'UPDATE files SET file_size = ?, updated_at = CURRENT_TIMESTAMP WHERE file_hash = ?',
+                        `UPDATE files 
+     SET 
+       file_size = ?, 
+       updated_at = CURRENT_TIMESTAMP,
+       file_is_load = CASE WHEN file_is_load != 1 THEN 1 ELSE file_is_load END
+     WHERE file_hash = ?`,
                         [fileSize, fileHash],
                         (err) => {
-                            if (err) console.error('更新记录失败:', err.message);
-                            else console.log(`已更新文件大小: ${filePath}`);
+                            if (err) {
+                                console.error('更新记录失败:', err.message);
+                            } else {
+                                console.log(`文件已更新: ${filePath}`);
+                            }
                         }
                     );
                 } else {
