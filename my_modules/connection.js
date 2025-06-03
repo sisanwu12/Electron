@@ -62,16 +62,18 @@ function sendSignalingMessage(remoteIP, remotePort, messageObj) {
  * 主动发起连接：用户输入远端的 IP 与端口时调用
  */
 async function initiateConnection(remoteIP, remotePort) {
+    console.log(`connection: 尝试连接到 ${remoteIP}:${remotePort}`);
     const key = `${remoteIP}:${remotePort}`;
     if (connections.has(key)) {
         console.log('已存在连接，不需要重复发起');
         return;
     }
-
     const peerConnection = new RTCPeerConnection(rtcConfig);
     connections.set(key, { peerConnection, dataChannel: null, remoteIP, remotePort });
 
     // 创建数据通道（主动创建）
+    console.log("connection: 尝试创建");
+
     const dataChannel = peerConnection.createDataChannel('dataChannel');
     setupDataChannel(dataChannel, key);
     connections.get(key).dataChannel = dataChannel;
@@ -114,11 +116,25 @@ async function handleOffer(offerSDP, remoteIP, remotePort, key) {
     }
 
     const { peerConnection } = connectionObj;
+
+    // 如果已经存在本地 Offer，则先回滚
+    if (peerConnection.signalingState === 'have-local-offer') {
+        console.log('检测到信令碰撞，执行回滚');
+        await peerConnection.setLocalDescription({ type: 'rollback' });
+    }
+
     // 设置远端描述
-    await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offerSDP }));
+    try {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offerSDP }));
+    } catch (error) {
+        console.error('设置远端描述时出错：', error);
+        return;
+    }
+
     // 创建 Answer
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
+
     // 发送 Answer 回去
     sendSignalingMessage(remoteIP, remotePort, {
         type: 'answer',

@@ -2,22 +2,16 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
 const { Worker } = require('worker_threads');
+const MyPath = require('./my_modules/MyPath');
 
-
-
-// 全局路径定义
-const PagePath = path.join(__dirname, `${path.sep}Pages${path.sep}`);
-const ModulePath = path.join(__dirname, `..${path.sep}my_modules${path.sep}`);
-
-
-let dbWorker = new Worker(path.join(ModulePath, 'dbworker.js'));
-const connection = require(path.join(ModulePath, 'connection.js'));
-const fileTransfer = require(path.join(ModulePath, 'fileTransfer'));
+let dbWorker = new Worker(MyPath.dbWorkerPath);
+const connection = require(MyPath.connectionPath);
+const fileTransfer = require(MyPath.fileTransferPath);
 
 
 // 用于管理请求—响应
 const pendingRequests = new Map();
-// 简单的 requestId 生成器
+// requestId 生成器
 let nextRequestId = 1;
 function generateRequestId() {
   return nextRequestId++;
@@ -52,21 +46,66 @@ function sendFileMetadataToDb(fileMetadata) {
 }
 
 
-// 获取本机局域网 IP（选择第一个非内网 IPv4 地址）
-function getLocalIp() {
-  const os = require('os');
+// 获取本机局域网 IP
+function isPrivateIPv4(ip) {
+  return (
+    ip.startsWith('10.') ||
+    ip.startsWith('192.168.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
+  );
+}
+const os = require('os');
+function getCandidateLocalIps() {
   const interfaces = os.networkInterfaces();
-  for (const iface in interfaces) {
-    for (const alias of interfaces[iface]) {
-      if (alias.family === 'IPv4' && !alias.internal) {
-        return alias.address;
+  const blacklistNames = ['VMware', 'VirtualBox', 'vEthernet', 'Loopback', 'WSL'];
+  const candidates = [];
+
+  for (const [name, addrs] of Object.entries(interfaces)) {
+    if (blacklistNames.some(b => name.includes(b))) continue;
+
+    for (const addr of addrs) {
+      if (addr.family === 'IPv4' && !addr.internal && isPrivateIPv4(addr.address)) {
+        candidates.push({ iface: name, ip: addr.address });
       }
     }
   }
-  return '127.0.0.1';
+  return candidates;
+}
+const dgram = require('dgram');
+async function testIP(ip) {
+  return new Promise((resolve) => {
+    const socket = dgram.createSocket('udp4');
+
+    socket.on('error', (err) => {
+      socket.close();
+      resolve(false);
+    });
+
+    socket.bind(0, ip, () => {
+      socket.setBroadcast(true);
+      const message = Buffer.from('test');
+      socket.send(message, 0, message.length, 41234, '255.255.255.255', (err) => {
+        socket.close();
+        resolve(!err); // 无错误即视为成功
+      });
+    });
+  });
 }
 
-const localIp = getLocalIp();
+async function getUsableLocalIp() {
+  const candidates = getCandidateLocalIps();
+  for (const { ip } of candidates) {
+    const ok = await testIP(ip);
+    if (ok) return ip;
+  }
+  return '127.0.0.1';
+}
+let localIp;
+getUsableLocalIp().then(ip => {
+  console.log('可用的本地局域网 IP:', ip);
+  localIp = ip;
+});
+
 let localPort;
 
 // 监听渲染进程发来的连接请求
@@ -89,18 +128,17 @@ function createWindow() {
       contextIsolation: true,
     }
   });
-  win.loadFile(path.join(PagePath, './index.html'));
+  win.loadFile(path.join(MyPath.PagesPath, './index.html'));
   win.webContents.on('did-finish-load', () => {
     fileTransfer.getWin(win);
   });
 }
 
 // 启动文件监控
-const watcherProcess = fork(path.resolve(ModulePath, 'fileWatcher.js'));
+let watcherProcess = new Worker(MyPath.fileWatcherPath)
 watcherProcess.on('message', (msg) => {
   console.log('文件监控消息:', msg);
 });
-
 
 function retLocal() {
   return { ip: localIp, port: localPort }
@@ -122,9 +160,6 @@ app.whenReady().then(async () => {
   ipcMain.handle('localInfo', () => {
     return { ip: localIp, port: localPort }
   })
-
-  const fileWatcher = require('../my_modules/fileWatcher');
-  fileWatcher.InitFileWatcher(app.getPath('home'));
   // 创建窗口
   createWindow();
 

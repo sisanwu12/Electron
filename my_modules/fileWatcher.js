@@ -3,8 +3,8 @@ const chokidar = require('chokidar');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
 
-let DataPath;
 
 // 计算文件哈希
 function calculateHash(filePath) {
@@ -16,17 +16,16 @@ function calculateHash(filePath) {
         stream.on('error', reject);
     });
 }
-
-async function InitFileWatcher(HomePath) {
+const home = os.homedir(); // 获取用户主目录
+const DataPath = path.join(home, 'LanShare');// 用于存储数据路径
+async function InitFileWatcher() {
     const dbWorker = new Worker(path.resolve(__dirname, 'dbWorker.js'));
-    const folderPath = path.join(HomePath, 'LanShare');
-    DataPath = folderPath;
     // 创建本应用的文件夹
-    fs.mkdir(folderPath, { recursive: true }, (err) => {
+    fs.mkdir(DataPath, { recursive: true }, (err) => {
         if (err) {
             console.error('创建文件夹失败:', err);
         } else {
-            console.log('文件夹已创建或已存在:', folderPath);
+            console.log('文件夹已创建或已存在:', DataPath);
         }
     });
 
@@ -34,11 +33,11 @@ async function InitFileWatcher(HomePath) {
     function getFileDetails(filePath) {
         const stats = fs.statSync(filePath);
         const fileName = path.basename(filePath);
-        return { filePath, fileName, fileSize: stats.size, filePartner: 'localhost', file_is_load: 1 };
+        return { filePath, fileName, fileSize: stats.size, filePartner: 'localhost', file_is_load: stats.file_is_load };
     }
 
     // 监控文件夹
-    const watcher = chokidar.watch(folderPath, {
+    const watcher = chokidar.watch(DataPath, {
         persistent: true,
         ignoreInitial: false,
     });
@@ -62,7 +61,7 @@ async function InitFileWatcher(HomePath) {
                     dbWorker.postMessage({
                         action: 'add',
                         ...fileDetails,
-                        fileHash,       // 添加哈希值
+                        fileHash,         // 添加哈希值
                         filePath,         // 确保传递 filePath
                         file_is_load: 1
                     });
@@ -88,13 +87,15 @@ async function InitFileWatcher(HomePath) {
             dbWorker.postMessage({ action: 'delete', filePath });
         });
 
-    console.log(`正在监控文件夹: ${folderPath}`);
+    console.log(`正在监控文件夹: ${DataPath}`);
 
 }
 
 function retDataPath() {
     return DataPath;
 }
+
+InitFileWatcher();
 
 
 module.exports = {

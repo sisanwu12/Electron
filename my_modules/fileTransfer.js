@@ -6,7 +6,21 @@ function getWin(win) {
     mainWindow = win;
 }
 
-const peers = new Map();
+// 获取数据库数据并发送
+async function getDatabaseFile() {
+    // 获取主进程的 retDatabaseDir() 返回的数据
+    const mainAPI = require('../main');
+    const filesData = await mainAPI.retDatabaseDir();
+    const ownerData = mainAPI.retLocal();
+    const key = `${ownerData.ip}:${ownerData.port}`
+    const message = {
+        type: 'db-file-metadata',
+        payload: filesData,
+        ownerKey: key
+    };
+    dataChannel.send(JSON.stringify(message));
+    console.log('fileTransfer.js: 已发送文件元信息', message);
+}
 
 // 存储接收端的临时数据
 const receivingFiles = new Map();
@@ -33,18 +47,7 @@ async function sendDatabaseMetadata() {
         return;
     }
 
-    // 获取主进程的 retDatabaseDir() 返回的数据
-    const mainAPI = require('../Electron/main');
-    const filesData = await mainAPI.retDatabaseDir();
-    const ownerData = mainAPI.retLocal();
-    const key = `${ownerData.ip}:${ownerData.port}`
-    const message = {
-        type: 'db-file-metadata',
-        payload: filesData,
-        ownerKey: key
-    };
-    dataChannel.send(JSON.stringify(message));
-    console.log('fileTransfer.js: 已发送文件元信息', message);
+    getDatabaseFile();
 }
 
 /**
@@ -189,7 +192,7 @@ async function handleIncomingData(data) {
                         fileHash: fileInfo.file_hash,
                         file_is_load: 0
                     }
-                    const mainAPI = require('../Electron/main');
+                    const mainAPI = require('../main');
                     mainAPI.sendFileMetadataToDb(fileMetadata);
                     console.log(`已写入${fileInfo.file_hash}`);
                 }

@@ -18,6 +18,7 @@ const db = new sqlite3.Database(DatabasePath, (err) => {
 
 // 处理无效记录
 function cleanInvalidRecords() {
+    const { connections } = require('./connection');
     // 查询所有记录
     db.all('SELECT id, file_path FROM files', [], (err, rows) => {
         if (err) {
